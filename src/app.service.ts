@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { RedisService } from './shared/redis/redis.service';
+import { RedisClient } from './shared/redis/redis.client';
 import { WatcherService } from './shared/watcher/watcher.service';
 import { Market } from './models/market.model';
 
+
 interface Subscription {
   key: string
-  cluster: string
+  cluster: Market.Cluster
   symbol: string
 }
 
@@ -17,28 +18,28 @@ export class AppService {
   private subscribeTo_channel = "subscribeTo";
   private unsubscribeFrom_channel = "unsubscribeFrom";
 
+  private redisSubscriber:RedisClient;
+  private redisPublisher:RedisClient;
+
   constructor(
-    private readonly redisService:RedisService,
+
     private readonly watcherService:WatcherService
   ) {
+    this.redisSubscriber = new RedisClient('tradelink_app_sub', process.env.REDIS);
+    this.redisPublisher = new RedisClient('tradelink_app_pub', process.env.REDIS);
+
     setTimeout(()=> {
       this.initialize();
     }, 1000);
-  }
-  getHello(): string {
-    return 'Hello World!';
-  }
-
-  @Cron('*/30 * * * * *')
-  async ping() {
-    this.logger.log("Ping!");
-    this.redisService.publish("ping", "Ping!");
   }
 
   private async initialize() {
     this.logger.log("Initalizing...");
 
-    this.redisService.onMessage((channel, message) => {
+    //let members = await this.redisPublisher.smembers(watcherKey) as string[];
+    //console.dir(members);
+
+    this.redisSubscriber.onMessage((channel, message) => {
       let subscription:Subscription = JSON.parse(message);
       switch (channel) {
         case this.subscribeTo_channel:
@@ -53,39 +54,63 @@ export class AppService {
 
     })
 
-    this.redisService.subscribe(this.subscribeTo_channel);
-    this.redisService.subscribe(this.unsubscribeFrom_channel);
+    this.redisSubscriber.subscribe(this.subscribeTo_channel);
+    this.redisSubscriber.subscribe(this.unsubscribeFrom_channel);
 
     this.logger.log("Initialized.");
   }
 
   private async subscribeTo(subscription:Subscription) {
-    let watcherKey = `watchers_${subscription.cluster}:${subscription.symbol}`;
+
+    console.dir(subscription);
+    let symbol = subscription.symbol;
+    let cluster = subscription.cluster;
+
+    // Keys
+    let watchlistKey = `watchlist:${cluster}`;
+    let watcherKey = `watchers_${cluster}:${symbol}`;
     let memberKey = subscription.key;
 
-    let watcher = await this.redisService.sismember(watcherKey, memberKey);
+    // Check if the member is already subscribed
+    let watcher = await this.redisPublisher.sismember(watcherKey, memberKey);
     if (watcher != 0) {
+
+      // Member is already subscribed
       this.logger.log(`${watcherKey}: ${memberKey} is already watching`);
       return;
     }
 
     this.logger.log(`${watcherKey} - ${memberKey} = ${watcher}`);
 
-    await this.redisService.sadd(watcherKey, memberKey);
-    await this.watcherService.subscribeTo(subscription.symbol, Market.Cluster.crypto);
-
+    // Member is not subscribed
+    // Add member and subscribe to websocket
+    await this.redisPublisher.sadd(watcherKey, memberKey);
+    await this.redisPublisher.sadd(watchlistKey, symbol);
+    await this.watcherService.subscribeTo(symbol, cluster);
   }
 
   private async unsubscribeFrom(subscription:Subscription) {
-    let watcherKey = `watchers_${subscription.cluster}:${subscription.symbol}`;
-    let memberKey = subscription.key;
-    await this.redisService.srem(watcherKey, memberKey);
 
-    let members = await this.redisService.smembers(watcherKey) as string[];
+    let symbol = subscription.symbol;
+    let cluster = subscription.cluster;
+
+    // Keys
+    let watchlistKey = `watchlist:${cluster}`;
+    let watcherKey = `watchers_${cluster}:${symbol}`;
+    let memberKey = subscription.key;
+
+    // Remove member
+    await this.redisPublisher.srem(watcherKey, memberKey);
+
+    // Check number of remaining members
+    let members = await this.redisPublisher.smembers(watcherKey) as string[];
 
     if (members.length == 0) {
-      console.log(`unsub: ${subscription.symbol}`);
-      await this.watcherService.unsubscribeFrom(subscription.symbol, Market.Cluster.crypto);
+      // No more members for this symbol
+      // Unsubscribe from websocket
+      this.logger.log(`unsub: ${symbol}`);
+      this.redisPublisher.srem(watchlistKey, symbol);
+      await this.watcherService.unsubscribeFrom(symbol, cluster);
     }
 
   }

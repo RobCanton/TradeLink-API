@@ -1,14 +1,15 @@
-import { Injectable, Inject } from '@nestjs/common';
+
 import * as redis from 'redis';
 
-@Injectable()
-export class RedisService {
+export class RedisClient {
   private client;
-  private subscriberClient;
 
-  constructor(@Inject('CONFIG_OPTIONS') private options) {
-    this.client = redis.createClient(options);
-    this.subscriberClient = redis.createClient(options);
+  constructor(name:string, url:string) {
+    this.client = redis.createClient({
+      url: url
+    });
+
+    this.client.hset(`clients`, name, Date.now());
   }
 
   async expire(key: string, timeout: number) {
@@ -167,9 +168,6 @@ export class RedisService {
     });
   }
 
-
-
-
   async sadd(key: string, value: any) {
     return new Promise( (resolve, reject) => {
       this.client.sadd(key, value, function (err, resp) {
@@ -230,7 +228,6 @@ export class RedisService {
       });
     });
   }
-
 
   /* SORTED SETS */
   async zadd(key: string, score:number, value: any) {
@@ -294,7 +291,6 @@ export class RedisService {
     });
   }
 
-
   /* LISTS */
   async rpush(key: string, value: any) {
     return new Promise( (resolve, reject) => {
@@ -353,12 +349,11 @@ export class RedisService {
   }
 
   subscribe(channel: string) {
-    //this.client
-    this.subscriberClient.subscribe(channel);
+    this.client.subscribe(channel);
   }
 
   onMessage(handler: (channel:string, message:string) => void) {
-    this.subscriberClient.on("message", handler);
+    this.client.on("message", handler);
   }
 
   flushall() {

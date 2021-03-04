@@ -1,6 +1,6 @@
 import { Injectable, Inject, HttpService, InternalServerErrorException, Logger } from '@nestjs/common';
 import * as WebSocket from "ws";
-import { RedisService } from '../redis/redis.service';
+import { RedisClient } from '../redis/redis.client';
 import { Dictionary } from '../../models/common.model';
 import { Market } from '../../models/market.model';
 import * as Models from '../../models/watcher.model';
@@ -18,19 +18,23 @@ export class WatcherService {
 
   updatedItems:Dictionary<Models.Stocks.AggregateMessage> = {};
 
-  constructor(@Inject('CONFIG_OPTIONS') private options,
-    private readonly redisService: RedisService
+  private redisPublisher:RedisClient;
+
+  constructor(
+    @Inject('CONFIG_OPTIONS') private options,
   ) {
 
+    this.redisPublisher = new RedisClient('tradelink_watcher_pub', process.env.REDIS);
+
     this.watchers = {};
-    this.watchers[Market.Cluster.stocks] = new StocksWatcher(this, this.options.api_key, redisService);
-    this.watchers[Market.Cluster.crypto] = new CryptoWatcher(this, this.options.api_key, redisService);
+    this.watchers[Market.Cluster.stocks] = new StocksWatcher(this, this.options.api_key);
+    this.watchers[Market.Cluster.crypto] = new CryptoWatcher(this, this.options.api_key);
 
   }
 
-  @Cron('*/6 * * * * *')
-  keepAlive() {
-    // console.log(`keepAlive`);
+  @Cron('*/5 * * * * *')
+  ping() {
+    this.redisPublisher.publish("ping", "Ping!");
     this.watchers[Market.Cluster.stocks].ping();
     this.watchers[Market.Cluster.crypto].ping();
   }
@@ -60,9 +64,7 @@ export class WatcherService {
   }
 
   sendMessage(ev: string, symbol: string, data: Models.Message) {
-    this.redisService.publish('data', JSON.stringify(data));
-    //console.log(`${symbol}: ${Date.now()}`);
-
+    this.redisPublisher.publish('data', JSON.stringify(data));
   }
 
 

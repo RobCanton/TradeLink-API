@@ -1,29 +1,21 @@
 import { Logger } from '@nestjs/common';
 import { Market } from '../../../models/market.model';
-import { RedisService } from '../../redis/redis.service';
 import { Watcher } from './watcher';
 import { WatcherDelegate, Message, Stocks } from '../../../models/watcher.model';
-//import { CryptoConsumer } from '../consumers/crypto_consumer';
 
 export class StocksWatcher extends Watcher {
-
-  //private consumer:CryptoConsumer;
 
   private permalink = "AAPL";
 
   constructor(
     delegate: WatcherDelegate,
-    apiKey: string,
-    redisService: RedisService) {
+    apiKey: string) {
 
-    super(Market.Cluster.stocks, delegate, apiKey, redisService);
-
-    //this.consumer = new CryptoConsumer(firebaseService, redisService);
+    super(Market.Cluster.stocks, delegate, apiKey);
   }
 
   async onConnect() {
-    // await this.redisService.sadd(`watchers_${this.cluster}:${this.permalink}`, 'permalink');
-    // this.subscribeToSymbol(this.permalink);
+
   }
 
   onDisconnect() {

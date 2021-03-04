@@ -1,6 +1,5 @@
 import { Logger } from '@nestjs/common';
 import { Market } from '../../../models/market.model';
-import { RedisService } from '../../redis/redis.service';
 import * as Models from '../../../models/watcher.model';
 import * as WebSocket from "ws"
 
@@ -18,8 +17,7 @@ export abstract class Watcher {
     constructor(
       cluster: Market.Cluster,
       delegate: Models.WatcherDelegate,
-      apiKey: string,
-      protected readonly redisService: RedisService
+      apiKey: string
     ) {
       this.delegate = delegate;
       this.cluster = cluster;
@@ -42,11 +40,6 @@ export abstract class Watcher {
         this.ws.send(`{"action":"auth","params":"${this.apiKey}"}`);
 
         this.onConnect();
-        /*
-        let results = await this.redisService.smembers(`${this.cluster}_watchlist`) as string[];
-        results.forEach( symbol => {
-          this.subscribeToSymbol(symbol);
-        })*/
       })
 
       this.ws.on('pong', () => {
