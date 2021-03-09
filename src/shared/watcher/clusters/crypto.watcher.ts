@@ -16,11 +16,11 @@ export class CryptoWatcher extends Watcher {
   }
 
   async onConnect() {
-
+    this.logger.log(`Websocket connected.`);
   }
 
   onDisconnect() {
-
+    this.logger.log(`Websocket disconnected.`);
   }
 
   nextTick() {
@@ -32,7 +32,6 @@ export class CryptoWatcher extends Watcher {
       return;
     }
 
-    //this.logger.log(`Message [${msg.ev}.${msg.}]`);
     switch (msg.ev) {
       case "XQ":
       let quote = msg as Crypto.QuoteMessage;
@@ -40,7 +39,6 @@ export class CryptoWatcher extends Watcher {
       break;
       case "XT":
       let trade = msg as Crypto.TradeMessage;
-      //this.consumer.consumeTrade(trade);
       this.delegate.sendMessage(msg.ev, trade.pair, trade);
       break;
       case "XA":
@@ -55,7 +53,7 @@ export class CryptoWatcher extends Watcher {
   }
 
   async subscribeToSymbol(symbol: string) {
-    this.sendWebsocketMessage(`{"action":"subscribe","params":"XT.${symbol}"}`);
+    this.sendWebsocketMessage(`{"action":"subscribe","params":"XT.${symbol},XA.${symbol}"}`);
   }
 
   async subscribeToSymbols(symbol: string[]) {
@@ -63,23 +61,7 @@ export class CryptoWatcher extends Watcher {
   }
 
   async unsubscribeFrom(symbol: string) {
-    this.sendWebsocketMessage(`{"action":"unsubscribe","params":"XT.${symbol}"}`);
-    /*
-    let socketSymbol = "BTC-USD";//await this.marketService.socketSymbol(symbol);
-    try {
-      let results = await this.redisService.hgetall(`${this.cluster}_watchers:${symbol}`) as string[];
-      if (results) {
-        this.logger.log(`Remain subscribed to ${symbol}: other watchers`);
-        return;
-      } else {
-        this.logger.log(`Unsubscribe from ${symbol}`);
-        this.sendWebsocketMessage(`{"action":"unsubscribe","params":"XQ.${socketSymbol},XT.${socketSymbol},XA.${socketSymbol}"}`);
-        await this.redisService.srem(`${this.cluster}_watchlist`, symbol);
-      }
-    } catch (error) {
-      console.log(error);
-      return;
-    }*/
+    this.sendWebsocketMessage(`{"action":"unsubscribe","params":"XT.${symbol},XA.${symbol}"}`);
   }
 
 

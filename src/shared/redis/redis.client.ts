@@ -352,6 +352,10 @@ export class RedisClient {
     this.client.subscribe(channel);
   }
 
+  unsubscribe(channel:string) {
+    this.client.unsubscribe(channel);
+  }
+
   onMessage(handler: (channel:string, message:string) => void) {
     this.client.on("message", handler);
   }

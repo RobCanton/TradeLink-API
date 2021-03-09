@@ -64,7 +64,7 @@ export class WatcherService {
   }
 
   sendMessage(ev: string, symbol: string, data: Models.Message) {
-    this.redisPublisher.publish('data', JSON.stringify(data));
+    this.redisPublisher.publish(`${ev}.${symbol}`, JSON.stringify(data));
   }
 
 
